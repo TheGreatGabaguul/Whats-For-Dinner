@@ -130,6 +130,40 @@ If you already set up Supabase before the Y2K frame picker was added:
    column (defaults to `'none'` for existing posts).
 2. Pull the latest `src/App.jsx`, commit, push.
 
+## Making it installable, with live updates
+
+Two upgrades, done in this update:
+
+**1. Installable like a real app.** The project now includes a web app
+manifest and service worker (via `vite-plugin-pwa`), plus the icons in
+`public/`. Once deployed to Vercel (regular HTTPS is required — this doesn't
+work on `localhost` for iOS, and Android wants HTTPS too):
+
+- **Android / Chrome / Edge:** visit the site, tap the **Install app** icon in
+  the address bar (or the "Add to Home Screen" banner that shows up
+  automatically).
+- **iPhone / Safari:** tap the **Share** button → **Add to Home Screen**.
+- **Desktop Chrome/Edge:** an install icon (⊕ or a little monitor) appears in
+  the address bar.
+
+Once installed, it opens in its own window with no browser chrome, its own
+icon, and its own app switcher entry — genuinely feels like a native app.
+
+New deploys auto-update: the service worker checks for a new version in the
+background and swaps it in on the next load, no app-store-style update
+prompt needed.
+
+**2. Live data updates.** The app now subscribes to Supabase Realtime. When
+anyone posts a dinner, rates something, reacts, or adds a friend, everyone
+else's open tab/app picks it up within a second — no manual refresh. Run
+`supabase-migration-add-realtime.sql` in the SQL Editor to turn this on
+(safe to run even on a project with existing data).
+
+To update an existing deployment: run the realtime migration, replace
+`vite.config.js`, `index.html`, and `src/App.jsx`, add the five new files in
+`public/`, run `npm install` (to pull in `vite-plugin-pwa`), then commit and
+push as usual.
+
 ## Notes and honest limitations
 
 - **"We reach out" for 5-star meals** is represented in-app (the Meal of the

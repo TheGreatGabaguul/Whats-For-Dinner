@@ -239,20 +239,18 @@ function FrameStyles() {
   );
 }
 
-// Renders a food photo inside whichever Y2K frame the poster picked.
-function PhotoFrame({ frame = "none", src, alt, height = 260 }) {
+// Renders a food photo (or, on the landing screen, the logo) inside
+// whichever Y2K frame is active.
+function PhotoFrame({ frame = "none", src, alt, width = "100%", height = 260, fit = "cover", bg, containerStyle }) {
   if (!src) return null;
-  const box = { width: "100%", height, marginTop: 10 };
+  const box = { width, height, marginTop: 10, ...containerStyle };
+  const imgBase = { width: "100%", height: "100%", objectFit: fit, display: "block", background: bg };
 
   if (frame === "tribal") {
     return (
       <div style={{ ...box, position: "relative", padding: 14, boxSizing: "border-box" }}>
         <div className="wfd-frame-tribal-bg" />
-        <img
-          src={src}
-          alt={alt}
-          style={{ position: "relative", zIndex: 1, width: "100%", height: "100%", objectFit: "cover", display: "block", borderRadius: 4 }}
-        />
+        <img src={src} alt={alt} style={{ ...imgBase, position: "relative", zIndex: 1, borderRadius: 4 }} />
       </div>
     );
   }
@@ -260,7 +258,7 @@ function PhotoFrame({ frame = "none", src, alt, height = 260 }) {
   if (frame === "dots") {
     return (
       <div style={{ ...box, position: "relative" }}>
-        <img src={src} alt={alt} className="wfd-frame-dots" style={{ width: "100%", height: "100%", objectFit: "cover", display: "block" }} />
+        <img src={src} alt={alt} className="wfd-frame-dots" style={imgBase} />
         <span className="wfd-dot" style={{ top: -6, left: -6, background: "#FF3D3D" }} />
         <span className="wfd-dot" style={{ top: -6, right: -6, background: "#3DC8FF" }} />
         <span className="wfd-dot" style={{ bottom: -6, left: -6, background: "#FFE93D" }} />
@@ -272,7 +270,210 @@ function PhotoFrame({ frame = "none", src, alt, height = 260 }) {
   const cls = frame && frame !== "none" ? `wfd-frame-${frame}` : "wfd-frame-plain";
   return (
     <div style={box}>
-      <img src={src} alt={alt} className={cls} style={{ width: "100%", height: "100%", objectFit: "cover", display: "block" }} />
+      <img src={src} alt={alt} className={cls} style={imgBase} />
+    </div>
+  );
+}
+
+// The 5 Y2K frames, cycling automatically around the logo on the landing screen.
+const LANDING_FRAMES = ["flame", "holo", "tribal", "dots", "chrome"];
+
+function LandingStyles() {
+  return (
+    <style>{`
+      .wfd-landing-bg {
+        background: linear-gradient(135deg, ${COLORS.purpleDeep}, ${COLORS.pink} 45%, ${COLORS.orange} 100%);
+        background-size: 220% 220%;
+        animation: wfd-landing-gradient 9s ease infinite;
+      }
+      @keyframes wfd-landing-gradient {
+        0% { background-position: 0% 30%; }
+        50% { background-position: 100% 70%; }
+        100% { background-position: 0% 30%; }
+      }
+
+      .wfd-landing-sparkle {
+        animation: wfd-landing-float 3.4s ease-in-out infinite;
+        filter: drop-shadow(0 2px 3px rgba(0,0,0,0.35));
+      }
+      @keyframes wfd-landing-float {
+        0%, 100% { transform: translateY(0) rotate(0deg); }
+        50% { transform: translateY(-14px) rotate(12deg); }
+      }
+
+      .wfd-landing-frame-outer { animation: wfd-landing-fade 0.55s ease; }
+      @keyframes wfd-landing-fade {
+        from { opacity: 0; transform: scale(0.96); }
+        to { opacity: 1; transform: scale(1); }
+      }
+
+      .wfd-landing-frame-box { width: 100%; aspect-ratio: 1 / 1; box-sizing: border-box; }
+
+      .wfd-landing-plain { border: 6px solid ${COLORS.ink}; border-radius: 20px; }
+
+      .wfd-landing-flame {
+        border: 16px solid;
+        border-image: repeating-linear-gradient(45deg, #FF3D00 0 18px, #FFC93C 18px 36px) 16;
+        border-radius: 16px;
+        animation: wfd-flicker-big 1.3s ease-in-out infinite;
+      }
+      @keyframes wfd-flicker-big {
+        0%, 100% { box-shadow: 0 0 30px 6px rgba(255,90,0,0.75); }
+        50% { box-shadow: 0 0 55px 14px rgba(255,140,0,0.95); }
+      }
+
+      .wfd-landing-holo {
+        border: 18px solid transparent;
+        background-image: linear-gradient(#fff,#fff), linear-gradient(120deg,#ff5da2,#ffd93c,#7fffbf,#5da2ff,#c93cff,#ff5da2);
+        background-origin: border-box;
+        background-clip: padding-box, border-box;
+        background-size: 100% 100%, 320% 320%;
+        animation: wfd-holo-shift-big 2.6s ease infinite;
+        border-radius: 16px;
+      }
+      @keyframes wfd-holo-shift-big {
+        0% { background-position: 0 0, 0% 50%; }
+        50% { background-position: 0 0, 100% 50%; }
+        100% { background-position: 0 0, 0% 50%; }
+      }
+
+      .wfd-landing-tribal-wrap { position: relative; padding: 22px; box-sizing: border-box; }
+      .wfd-landing-tribal-bg {
+        position: absolute;
+        inset: 0;
+        background: #1a1a1a;
+        clip-path: ${TRIBAL_CLIP_PATH};
+      }
+
+      .wfd-landing-dots {
+        border: 16px dashed;
+        border-image: repeating-linear-gradient(90deg, #ff3d3d,#ff9f3d,#ffe93d,#6dff3d,#3dc8ff,#b23dff,#ff3d3d) 1;
+        border-radius: 12px;
+      }
+      .wfd-landing-dot {
+        position: absolute;
+        width: 28px;
+        height: 28px;
+        border-radius: 50%;
+        border: 3px solid ${COLORS.ink};
+        z-index: 2;
+      }
+
+      .wfd-landing-chrome {
+        border: 16px solid;
+        border-image: linear-gradient(135deg,#f5f5f5,#999 30%,#eee 50%,#666 70%,#ccc) 16;
+        box-shadow: inset 0 3px 5px rgba(255,255,255,0.9), inset 0 -5px 10px rgba(0,0,0,0.5), 0 4px 12px rgba(0,0,0,0.4);
+        border-radius: 12px;
+      }
+
+      @media (prefers-reduced-motion: reduce) {
+        .wfd-landing-bg, .wfd-landing-sparkle, .wfd-landing-flame, .wfd-landing-holo, .wfd-landing-frame-outer {
+          animation: none !important;
+        }
+      }
+    `}</style>
+  );
+}
+
+function LandingLogo({ frame }) {
+  const img = { width: "100%", height: "100%", objectFit: "contain", display: "block", background: "#fff" };
+
+  if (frame === "tribal") {
+    return (
+      <div className="wfd-landing-frame-box wfd-landing-tribal-wrap">
+        <div className="wfd-landing-tribal-bg" />
+        <img src="/logo.png" alt="What's For Dinner" style={{ ...img, position: "relative", zIndex: 1 }} />
+      </div>
+    );
+  }
+
+  if (frame === "dots") {
+    return (
+      <div className="wfd-landing-frame-box" style={{ position: "relative" }}>
+        <img src="/logo.png" alt="What's For Dinner" className="wfd-landing-dots" style={img} />
+        <span className="wfd-landing-dot" style={{ top: -14, left: -14, background: "#FF3D3D" }} />
+        <span className="wfd-landing-dot" style={{ top: -14, right: -14, background: "#3DC8FF" }} />
+        <span className="wfd-landing-dot" style={{ bottom: -14, left: -14, background: "#FFE93D" }} />
+        <span className="wfd-landing-dot" style={{ bottom: -14, right: -14, background: "#6DFF3D" }} />
+      </div>
+    );
+  }
+
+  const cls = frame && frame !== "none" ? `wfd-landing-${frame}` : "wfd-landing-plain";
+  return (
+    <div className="wfd-landing-frame-box">
+      <img src="/logo.png" alt="What's For Dinner" className={cls} style={img} />
+    </div>
+  );
+}
+
+function LandingScreen({ onChoose }) {
+  const [frameIndex, setFrameIndex] = useState(0);
+
+  useEffect(() => {
+    const t = setInterval(() => setFrameIndex((i) => (i + 1) % LANDING_FRAMES.length), 2400);
+    return () => clearInterval(t);
+  }, []);
+
+  const frame = LANDING_FRAMES[frameIndex];
+
+  return (
+    <div
+      className="wfd-landing-bg"
+      style={{
+        minHeight: "100vh",
+        display: "flex",
+        flexDirection: "column",
+        alignItems: "center",
+        justifyContent: "center",
+        padding: "28px 16px",
+        position: "relative",
+        overflow: "hidden",
+      }}
+    >
+      <LandingStyles />
+
+      <div className="wfd-landing-sparkle" style={{ position: "absolute", top: "8%", left: "8%", fontSize: 26 }}>✨</div>
+      <div className="wfd-landing-sparkle" style={{ position: "absolute", top: "14%", right: "10%", fontSize: 20, animationDelay: "0.6s" }}>⭐</div>
+      <div className="wfd-landing-sparkle" style={{ position: "absolute", bottom: "18%", left: "10%", fontSize: 22, animationDelay: "1.1s" }}>🌟</div>
+      <div className="wfd-landing-sparkle" style={{ position: "absolute", bottom: "12%", right: "8%", fontSize: 24, animationDelay: "0.3s" }}>✨</div>
+
+      <div style={{ width: "min(88vw, 500px)", position: "relative", zIndex: 2 }}>
+        <div key={frame} className="wfd-landing-frame-outer">
+          <LandingLogo frame={frame} />
+        </div>
+      </div>
+
+      <p
+        style={{
+          color: "#fff",
+          textShadow: `2px 2px 0 ${COLORS.ink}`,
+          marginTop: 22,
+          marginBottom: 26,
+          fontFamily: "'Fredoka', sans-serif",
+          fontSize: 16,
+          textAlign: "center",
+          position: "relative",
+          zIndex: 2,
+        }}
+      >
+        rate your grub · tag your chef · get famous
+      </p>
+
+      <div style={{ display: "flex", flexDirection: "column", gap: 12, width: "min(88vw, 340px)", position: "relative", zIndex: 2 }}>
+        <button
+          onClick={() => onChoose("signup")}
+          style={{ ...primaryBtn(false), marginTop: 0, fontSize: 17, padding: "13px 14px", background: COLORS.lime, color: COLORS.purpleDeep }}
+        >
+          create new account
+        </button>
+        <button
+          onClick={() => onChoose("login")}
+          style={{ ...primaryBtn(false), marginTop: 0, fontSize: 17, padding: "13px 14px", background: "#fff", color: COLORS.purpleDeep }}
+        >
+          log in
+        </button>
+      </div>
     </div>
   );
 }
@@ -288,6 +489,8 @@ export default function App() {
   const [viewingProfileId, setViewingProfileId] = useState(null);
   const [showComposer, setShowComposer] = useState(false);
   const [error, setError] = useState("");
+  const [authStage, setAuthStage] = useState("landing"); // "landing" | "form"
+  const [authMode, setAuthMode] = useState("signup"); // "signup" | "login"
 
   const loadAll = useCallback(async (myId) => {
     const [profilesRes, postsRes, friendsRes] = await Promise.all([
@@ -334,6 +537,33 @@ export default function App() {
       }
     })();
   }, [loadAll]);
+
+  // Live updates: whenever anyone posts, rates, reacts, or adds a friend,
+  // every open tab quietly refetches so the feed stays current without a
+  // manual reload. Debounced so a burst of changes (e.g. a photo upload
+  // plus its post row) only triggers one refetch.
+  useEffect(() => {
+    if (!profile) return;
+    let debounceTimer = null;
+    const refetch = () => {
+      clearTimeout(debounceTimer);
+      debounceTimer = setTimeout(() => loadAll(profile.id), 400);
+    };
+
+    const channel = supabase
+      .channel("wfd-live")
+      .on("postgres_changes", { event: "*", schema: "public", table: "posts" }, refetch)
+      .on("postgres_changes", { event: "*", schema: "public", table: "ratings" }, refetch)
+      .on("postgres_changes", { event: "*", schema: "public", table: "reactions" }, refetch)
+      .on("postgres_changes", { event: "*", schema: "public", table: "friends" }, refetch)
+      .on("postgres_changes", { event: "*", schema: "public", table: "profiles" }, refetch)
+      .subscribe();
+
+    return () => {
+      clearTimeout(debounceTimer);
+      supabase.removeChannel(channel);
+    };
+  }, [profile?.id, loadAll]);
 
   async function handleSignUp({ username, password, avatar, bio }) {
     setError("");
@@ -506,9 +736,25 @@ export default function App() {
   }
 
   if (!session) {
+    if (authStage === "landing") {
+      return (
+        <LandingScreen
+          onChoose={(mode) => {
+            setAuthMode(mode);
+            setAuthStage("form");
+          }}
+        />
+      );
+    }
     return (
       <div style={wrap()}>
-        <AuthScreen onSignUp={handleSignUp} onLogIn={handleLogIn} error={error} />
+        <AuthScreen
+          initialMode={authMode}
+          onBack={() => setAuthStage("landing")}
+          onSignUp={handleSignUp}
+          onLogIn={handleLogIn}
+          error={error}
+        />
       </div>
     );
   }
@@ -619,8 +865,8 @@ function wrap() {
   };
 }
 
-function AuthScreen({ onSignUp, onLogIn, error }) {
-  const [mode, setMode] = useState("signup"); // "signup" | "login"
+function AuthScreen({ onSignUp, onLogIn, error, initialMode = "signup", onBack }) {
+  const [mode, setMode] = useState(initialMode); // "signup" | "login"
   const [username, setUsername] = useState("");
   const [password, setPassword] = useState("");
   const [avatar, setAvatar] = useState(AVATARS[0]);
@@ -665,6 +911,26 @@ function AuthScreen({ onSignUp, onLogIn, error }) {
         rate your grub. tag your chef. get famous 🍝
       </p>
       <Box style={{ padding: 20 }}>
+        {onBack && (
+          <button
+            onClick={onBack}
+            style={{
+              background: "none",
+              border: "none",
+              cursor: "pointer",
+              color: COLORS.purple,
+              fontFamily: "'Fredoka', sans-serif",
+              fontSize: 13,
+              padding: 0,
+              marginBottom: 10,
+              display: "flex",
+              alignItems: "center",
+              gap: 4,
+            }}
+          >
+            ← back
+          </button>
+        )}
         <div style={{ display: "flex", marginBottom: 14, border: `2px solid ${COLORS.ink}`, borderRadius: 10, overflow: "hidden" }}>
           <button
             onClick={() => setMode("signup")}
@@ -838,8 +1104,19 @@ function Header({ onNew, onLogOut }) {
         gap: 10,
       }}
     >
-      <div style={{ fontFamily: "'Fredoka', sans-serif", fontSize: 26, color: "#fff", textShadow: `2px 2px 0 ${COLORS.ink}` }}>
+      <div style={{ fontFamily: "'Fredoka', sans-serif", fontSize: 26, color: "#fff", textShadow: `2px 2px 0 ${COLORS.ink}`, display: "flex", alignItems: "center", gap: 8 }}>
         🍽️ What's For Dinner
+        <span
+          title="live updates on"
+          style={{
+            width: 8,
+            height: 8,
+            borderRadius: "50%",
+            background: COLORS.lime,
+            boxShadow: "0 0 6px 2px rgba(180,230,0,0.8)",
+            display: "inline-block",
+          }}
+        />
       </div>
       <div style={{ display: "flex", gap: 8, alignItems: "center" }}>
         <button
