@@ -23,7 +23,7 @@ export const supabase = createClient(supabaseUrl, supabaseAnonKey, {
 // Supabase's real, tested password auth instead of building our own.
 function usernameToEmail(username) {
   const clean = username.trim().toLowerCase().replace(/[^a-z0-9_]/g, "");
-  return `${clean}@wfd.local`;
+  return `${clean}@wfdapp.com`;
 }
 
 export function isValidUsername(username) {
