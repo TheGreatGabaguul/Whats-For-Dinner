@@ -1,5 +1,5 @@
 import React, { useState, useEffect, useCallback, useRef } from "react";
-import { Star, ChefHat, Users, Home, User, Trophy, Sparkles, Plus, X, Camera, Loader2, Crown, LogOut } from "lucide-react";
+import { Star, ChefHat, Users, Home, User, Trophy, Sparkles, Plus, X, Camera, Loader2, Crown, LogOut, MoreVertical, Trash2 } from "lucide-react";
 import { supabase, getSession, signUpWithUsername, signInWithUsername, signOut, isValidUsername } from "./supabaseClient";
 
 const MAX_IMAGE_MB = 8; // hard cap on the ORIGINAL file before compression
@@ -128,9 +128,10 @@ function timeAgo(iso) {
   return Math.floor(s / 86400) + "d ago";
 }
 
-function Box({ children, style, tilt = 0 }) {
+function Box({ children, style, tilt = 0, className }) {
   return (
     <div
+      className={className}
       style={{
         background: COLORS.panel,
         border: `3px solid ${COLORS.ink}`,
@@ -161,6 +162,42 @@ function PixelBadge({ children, bg = COLORS.gold }) {
       }}
     >
       {children}
+    </span>
+  );
+}
+
+// Renders a person's avatar — a custom uploaded image if they have one
+// (avatar_url), otherwise their chosen emoji.
+function Avatar({ person, size = 32 }) {
+  if (person?.avatar_url) {
+    return (
+      <img
+        src={person.avatar_url}
+        alt={person?.name ? `${person.name}'s avatar` : "avatar"}
+        style={{ width: size, height: size, objectFit: "contain", display: "inline-block", verticalAlign: "middle" }}
+      />
+    );
+  }
+  return <span style={{ fontSize: size, lineHeight: 1 }}>{person?.avatar || "❓"}</span>;
+}
+
+function AdminBadge() {
+  return (
+    <span
+      style={{
+        fontFamily: "'Press Start 2P', monospace",
+        fontSize: 8,
+        background: COLORS.purpleDeep,
+        color: COLORS.gold,
+        padding: "3px 6px",
+        border: `2px solid ${COLORS.ink}`,
+        borderRadius: 4,
+        display: "inline-block",
+        lineHeight: 1.4,
+        verticalAlign: "middle",
+      }}
+    >
+      ADMIN
     </span>
   );
 }
@@ -235,7 +272,69 @@ function FrameStyles() {
       @media (prefers-reduced-motion: reduce) {
         .wfd-frame-flame, .wfd-frame-holo { animation: none !important; }
       }
+
+      .wfd-gold-aura {
+        border: 4px solid ${COLORS.gold} !important;
+        animation: wfd-gold-pulse 1.8s ease-in-out infinite;
+      }
+      @keyframes wfd-gold-pulse {
+        0%, 100% { box-shadow: 0 0 0 3px ${COLORS.ink}, 0 0 20px 5px rgba(255,201,60,0.75), 0 0 40px 12px rgba(255,201,60,0.45); }
+        50% { box-shadow: 0 0 0 3px ${COLORS.ink}, 0 0 34px 10px rgba(255,201,60,0.95), 0 0 60px 20px rgba(255,201,60,0.65); }
+      }
+      @media (prefers-reduced-motion: reduce) {
+        .wfd-gold-aura { animation: none !important; box-shadow: 0 0 0 3px ${COLORS.ink}, 0 0 24px 6px rgba(255,201,60,0.85) !important; }
+      }
     `}</style>
+  );
+}
+
+// Half-star picker used in the composer — tap the left half of a star for
+// a .5, the right half for a whole number.
+function HalfStarPicker({ value, onChange, size = 32 }) {
+  return (
+    <div style={{ display: "flex", gap: 4 }}>
+      {[1, 2, 3, 4, 5].map((i) => {
+        const filledPct = Math.max(0, Math.min(1, value - (i - 1))) * 100;
+        return (
+          <div key={i} style={{ position: "relative", width: size, height: size }}>
+            <Star size={size} color={COLORS.ink} fill="none" />
+            <div style={{ position: "absolute", top: 0, left: 0, width: `${filledPct}%`, height: size, overflow: "hidden" }}>
+              <Star size={size} color={COLORS.ink} fill={COLORS.gold} />
+            </div>
+            <button
+              onClick={() => onChange(i - 0.5)}
+              aria-label={`${i - 0.5} stars`}
+              style={{ position: "absolute", top: 0, left: 0, width: "50%", height: "100%", background: "none", border: "none", cursor: "pointer", padding: 0 }}
+            />
+            <button
+              onClick={() => onChange(i)}
+              aria-label={`${i} stars`}
+              style={{ position: "absolute", top: 0, right: 0, width: "50%", height: "100%", background: "none", border: "none", cursor: "pointer", padding: 0 }}
+            />
+          </div>
+        );
+      })}
+    </div>
+  );
+}
+
+// Read-only half-star display for showing a post's self-rating in the feed.
+function HalfStarDisplay({ value, size = 16 }) {
+  if (!value) return null;
+  return (
+    <div style={{ display: "flex", gap: 2 }}>
+      {[1, 2, 3, 4, 5].map((i) => {
+        const filledPct = Math.max(0, Math.min(1, value - (i - 1))) * 100;
+        return (
+          <div key={i} style={{ position: "relative", width: size, height: size }}>
+            <Star size={size} color={COLORS.ink} fill="none" />
+            <div style={{ position: "absolute", top: 0, left: 0, width: `${filledPct}%`, height: size, overflow: "hidden" }}>
+              <Star size={size} color={COLORS.ink} fill={COLORS.gold} />
+            </div>
+          </div>
+        );
+      })}
+    </div>
   );
 }
 
@@ -650,7 +749,7 @@ export default function App() {
     await supabase.from("friends").delete().eq("user_id", profile.id).eq("friend_id", id);
   }
 
-  async function postDinner({ meal, description, mood, chefId, imageFile, frame }) {
+  async function postDinner({ meal, chefId, imageFile, frame, selfRating }) {
     let image_url = null;
 
     if (imageFile) {
@@ -672,11 +771,10 @@ export default function App() {
       .insert({
         author_id: profile.id,
         meal: meal.trim(),
-        description: description.trim(),
-        mood,
         chef_id: chefId || null,
         image_url,
         frame: image_url ? frame || "none" : "none",
+        self_rating: selfRating || null,
       })
       .select()
       .single();
@@ -722,6 +820,37 @@ export default function App() {
           { post_id: postId, user_id: profile.id, reaction: reactionKey },
           { onConflict: "post_id,user_id" }
         );
+    }
+  }
+
+  async function deletePost(postId) {
+    const post = timeline.find((p) => p.id === postId);
+    if (!post) return;
+    const canDelete = post.author_id === profile.id || profile.is_admin;
+    if (!canDelete) return;
+    if (!window.confirm("Delete this post? This can't be undone.")) return;
+
+    setTimeline((t) => t.filter((p) => p.id !== postId));
+
+    // Best-effort photo cleanup — if this fails, the post row still gets
+    // deleted below; an orphaned file in storage isn't a big deal.
+    if (post.image_url) {
+      try {
+        const marker = "/dinner-photos/";
+        const idx = post.image_url.indexOf(marker);
+        if (idx !== -1) {
+          const path = post.image_url.slice(idx + marker.length);
+          await supabase.storage.from("dinner-photos").remove([path]);
+        }
+      } catch {
+        // ignore — the photo just stays orphaned in storage
+      }
+    }
+
+    const { error: err } = await supabase.from("posts").delete().eq("id", postId);
+    if (err) {
+      setError("Couldn't delete post: " + err.message);
+      await loadAll(profile.id); // restore state if the delete failed server-side
     }
   }
 
@@ -803,6 +932,7 @@ export default function App() {
                   profile={profile}
                   onRate={rate}
                   onReact={react}
+                  onDelete={deletePost}
                   onViewProfile={setViewingProfileId}
                 />
               </>
@@ -1180,8 +1310,10 @@ function MarqueeTicker({ timeline, directory }) {
 function ProfileCard({ profile, postsCount }) {
   return (
     <Box style={{ padding: 14, textAlign: "center" }}>
-      <div style={{ fontSize: 44 }}>{profile.avatar}</div>
-      <div style={{ fontFamily: "'Fredoka', sans-serif", fontSize: 18, color: COLORS.purple }}>{profile.name}</div>
+      <div><Avatar person={profile} size={44} /></div>
+      <div style={{ fontFamily: "'Fredoka', sans-serif", fontSize: 18, color: COLORS.purple, display: "flex", alignItems: "center", justifyContent: "center", gap: 6, flexWrap: "wrap" }}>
+        {profile.name} {profile.is_admin && <AdminBadge />}
+      </div>
       {profile.bio && <div style={{ fontSize: 13, marginTop: 4, opacity: 0.8 }}>{profile.bio}</div>}
       <div style={{ marginTop: 8 }}>
         <PixelBadge>{postsCount} DINNERS</PixelBadge>
@@ -1203,8 +1335,10 @@ function BestFriendCard({ bestFriend, directory, onView }) {
           onClick={() => onView(friend.id)}
           style={{ background: "none", border: "none", cursor: "pointer", width: "100%" }}
         >
-          <div style={{ fontSize: 46 }}>{friend.avatar}</div>
-          <div style={{ fontFamily: "'Fredoka', sans-serif", fontSize: 16, color: COLORS.ink }}>{friend.name}</div>
+          <div><Avatar person={friend} size={46} /></div>
+          <div style={{ fontFamily: "'Fredoka', sans-serif", fontSize: 16, color: COLORS.ink, display: "flex", alignItems: "center", justifyContent: "center", gap: 5, flexWrap: "wrap" }}>
+            {friend.name} {friend.is_admin && <AdminBadge />}
+          </div>
           <div style={{ marginTop: 6 }}>
             <PixelBadge>{bestFriend.score} INTERACTIONS</PixelBadge>
           </div>
@@ -1263,7 +1397,7 @@ function MealOfWeek({ entry, author }) {
         <span style={{ fontFamily: "'Fredoka', sans-serif", fontSize: 18, color: COLORS.purpleDeep }}>Meal of the Week</span>
       </div>
       <div style={{ fontSize: 15 }}>
-        <b>{author.avatar} {author.name}</b>'s <b>{p.meal}</b> — {fives} five-star rating{fives > 1 ? "s" : ""} this week!
+        <b><Avatar person={author} size={18} /> {author.name}</b>{author.is_admin && <> <AdminBadge /></>}'s <b>{p.meal}</b> — {fives} five-star rating{fives > 1 ? "s" : ""} this week!
       </div>
       <div style={{ fontSize: 13, marginTop: 4, opacity: 0.85 }}>
         Recipe pending — the What's For Dinner team reaches out to five-star cooks personally. 🏅
@@ -1272,7 +1406,7 @@ function MealOfWeek({ entry, author }) {
   );
 }
 
-function Feed({ posts, author, profile, onRate, onReact, onViewProfile }) {
+function Feed({ posts, author, profile, onRate, onReact, onDelete, onViewProfile }) {
   if (!posts.length) {
     return (
       <Box style={{ padding: 24, textAlign: "center" }}>
@@ -1293,6 +1427,7 @@ function Feed({ posts, author, profile, onRate, onReact, onViewProfile }) {
           profile={profile}
           onRate={onRate}
           onReact={onReact}
+          onDelete={onDelete}
           onViewProfile={onViewProfile}
           tilt={i % 2 === 0 ? -0.4 : 0.4}
         />
@@ -1301,10 +1436,70 @@ function Feed({ posts, author, profile, onRate, onReact, onViewProfile }) {
   );
 }
 
-function PostCard({ post, author, chef, profile, onRate, onReact, onViewProfile, tilt }) {
+function PostMenu({ onDelete }) {
+  const [open, setOpen] = useState(false);
+  return (
+    <div style={{ position: "relative" }}>
+      <button
+        onClick={() => setOpen((o) => !o)}
+        aria-label="post options"
+        style={{ background: "none", border: "none", cursor: "pointer", padding: 4 }}
+      >
+        <MoreVertical size={18} color={COLORS.ink} />
+      </button>
+      {open && (
+        <>
+          <div onClick={() => setOpen(false)} style={{ position: "fixed", inset: 0, zIndex: 10 }} />
+          <div
+            style={{
+              position: "absolute",
+              top: "110%",
+              right: 0,
+              background: "#fff",
+              border: `2px solid ${COLORS.ink}`,
+              borderRadius: 10,
+              boxShadow: `3px 3px 0 ${COLORS.ink}`,
+              overflow: "hidden",
+              zIndex: 11,
+              minWidth: 150,
+            }}
+          >
+            <button
+              onClick={() => {
+                setOpen(false);
+                onDelete();
+              }}
+              style={{
+                width: "100%",
+                display: "flex",
+                alignItems: "center",
+                gap: 6,
+                padding: "10px 12px",
+                background: "none",
+                border: "none",
+                cursor: "pointer",
+                fontFamily: "'Fredoka', sans-serif",
+                fontSize: 13,
+                color: COLORS.pinkDark,
+                textAlign: "left",
+                whiteSpace: "nowrap",
+              }}
+            >
+              <Trash2 size={14} /> delete post
+            </button>
+          </div>
+        </>
+      )}
+    </div>
+  );
+}
+
+function PostCard({ post, author, chef, profile, onRate, onReact, onDelete, onViewProfile, tilt }) {
   const ratings = Object.values(post.ratingsMap);
   const avg = ratings.length ? (ratings.reduce((a, b) => a + b, 0) / ratings.length).toFixed(1) : null;
   const myRating = post.ratingsMap[profile.id] || 0;
+  const isPerfect = post.self_rating === 5;
+  const canDelete = post.author_id === profile.id || profile.is_admin;
   const reactionCounts = REACTIONS.map((r) => ({
     ...r,
     count: Object.values(post.reactionsMap).filter((v) => v === r.key).length,
@@ -1312,27 +1507,36 @@ function PostCard({ post, author, chef, profile, onRate, onReact, onViewProfile,
   }));
 
   return (
-    <Box style={{ padding: 16 }} tilt={tilt}>
+    <Box style={{ padding: 16, position: "relative" }} tilt={tilt} className={isPerfect ? "wfd-gold-aura" : undefined}>
+      {isPerfect && (
+        <div style={{ position: "absolute", top: -14, right: -8, transform: "rotate(8deg)", zIndex: 3 }}>
+          <PixelBadge bg={COLORS.gold}>★ PERFECT ★</PixelBadge>
+        </div>
+      )}
       <div style={{ display: "flex", gap: 10, alignItems: "center" }}>
-        <button onClick={() => onViewProfile(post.author_id)} style={{ fontSize: 30, background: "none", border: "none", cursor: "pointer" }}>
-          {author.avatar}
+        <button onClick={() => onViewProfile(post.author_id)} style={{ background: "none", border: "none", cursor: "pointer" }}>
+          <Avatar person={author} size={30} />
         </button>
         <div style={{ flex: 1 }}>
           <button
             onClick={() => onViewProfile(post.author_id)}
-            style={{ fontFamily: "'Fredoka', sans-serif", color: COLORS.purple, background: "none", border: "none", cursor: "pointer", padding: 0, fontSize: 15 }}
+            style={{ fontFamily: "'Fredoka', sans-serif", color: COLORS.purple, background: "none", border: "none", cursor: "pointer", padding: 0, fontSize: 15, display: "inline-flex", alignItems: "center", gap: 5 }}
           >
-            {author.name}
+            {author.name} {author.is_admin && <AdminBadge />}
           </button>
           <div style={{ fontSize: 11, opacity: 0.6 }}>{timeAgo(post.created_at)}</div>
         </div>
-        {post.mood && <div style={{ fontSize: 22 }}>{post.mood}</div>}
+        {post.self_rating != null && (
+          <div style={{ display: "flex", alignItems: "center", gap: 4 }}>
+            <HalfStarDisplay value={post.self_rating} size={16} />
+          </div>
+        )}
+        {canDelete && <PostMenu onDelete={() => onDelete(post.id)} />}
       </div>
 
       {post.image_url && <PhotoFrame frame={post.frame} src={post.image_url} alt={post.meal} height={280} />}
 
       <div style={{ marginTop: 10, fontFamily: "'Fredoka', sans-serif", fontSize: 19, color: COLORS.ink }}>{post.meal}</div>
-      {post.description && <div style={{ marginTop: 4, fontSize: 14 }}>{post.description}</div>}
 
       {chef && (
         <div style={{ marginTop: 8 }}>
@@ -1390,10 +1594,10 @@ function FriendsTab({ directory, friends, profile, onAdd, onRemove, onView }) {
         <div style={{ display: "flex", flexDirection: "column", gap: 8 }}>
           {others.map((d) => (
             <div key={d.id} style={{ display: "flex", alignItems: "center", gap: 10, padding: 8, border: `2px solid ${COLORS.ink}`, borderRadius: 10 }}>
-              <button onClick={() => onView(d.id)} style={{ fontSize: 24, background: "none", border: "none", cursor: "pointer" }}>{d.avatar}</button>
+              <button onClick={() => onView(d.id)} style={{ background: "none", border: "none", cursor: "pointer" }}><Avatar person={d} size={24} /></button>
               <div style={{ flex: 1 }}>
-                <button onClick={() => onView(d.id)} style={{ background: "none", border: "none", cursor: "pointer", padding: 0, fontFamily: "'Fredoka', sans-serif", color: COLORS.purple }}>
-                  {d.name}
+                <button onClick={() => onView(d.id)} style={{ background: "none", border: "none", cursor: "pointer", padding: 0, fontFamily: "'Fredoka', sans-serif", color: COLORS.purple, display: "inline-flex", alignItems: "center", gap: 5 }}>
+                  {d.name} {d.is_admin && <AdminBadge />}
                 </button>
               </div>
               {friends.includes(d.id) ? (
@@ -1433,10 +1637,10 @@ function HallOfFame({ posts, author }) {
           const fives = Object.values(p.ratingsMap).filter((r) => r === 5).length;
           return (
             <div key={p.id} style={{ display: "flex", alignItems: "center", gap: 10, padding: 8, border: `2px solid ${COLORS.ink}`, borderRadius: 10 }}>
-              <span style={{ fontSize: 22 }}>{a.avatar}</span>
+              <span><Avatar person={a} size={22} /></span>
               <div style={{ flex: 1 }}>
                 <div style={{ fontFamily: "'Fredoka', sans-serif", fontSize: 14 }}>{p.meal}</div>
-                <div style={{ fontSize: 11, opacity: 0.7 }}>by {a.name}</div>
+                <div style={{ fontSize: 11, opacity: 0.7 }}>by {a.name} {a.is_admin && <AdminBadge />}</div>
               </div>
               <PixelBadge>★×{fives}</PixelBadge>
             </div>
@@ -1451,8 +1655,10 @@ function ProfilePage({ person, posts, isMe, isFriend, onAddFriend }) {
   return (
     <div>
       <Box style={{ padding: 18, textAlign: "center", marginBottom: 14 }}>
-        <div style={{ fontSize: 50 }}>{person.avatar}</div>
-        <div style={{ fontFamily: "'Fredoka', sans-serif", fontSize: 22, color: COLORS.purple }}>{person.name}</div>
+        <div><Avatar person={person} size={50} /></div>
+        <div style={{ fontFamily: "'Fredoka', sans-serif", fontSize: 22, color: COLORS.purple, display: "flex", alignItems: "center", justifyContent: "center", gap: 6, flexWrap: "wrap" }}>
+          {person.name} {person.is_admin && <AdminBadge />}
+        </div>
         {person.bio && <div style={{ fontSize: 13, marginTop: 4 }}>{person.bio}</div>}
         {!isMe && !isFriend && onAddFriend && (
           <button onClick={onAddFriend} style={{ ...primaryBtn(false), width: "auto", marginTop: 12 }}>
@@ -1478,8 +1684,8 @@ function ProfilePage({ person, posts, isMe, isFriend, onAddFriend }) {
               )}
               <div>
                 <div style={{ fontFamily: "'Fredoka', sans-serif", fontSize: 15 }}>{p.meal}</div>
-                {p.description && <div style={{ fontSize: 13, marginTop: 2 }}>{p.description}</div>}
-                <div style={{ fontSize: 11, opacity: 0.7, marginTop: 4 }}>{timeAgo(p.created_at)} · ⭐ {avg}</div>
+                {p.self_rating != null && <HalfStarDisplay value={p.self_rating} size={13} />}
+                <div style={{ fontSize: 11, opacity: 0.7, marginTop: 4 }}>{timeAgo(p.created_at)} · community avg ⭐ {avg}</div>
               </div>
             </Box>
           );
@@ -1492,8 +1698,7 @@ function ProfilePage({ person, posts, isMe, isFriend, onAddFriend }) {
 
 function Composer({ friends, directory, onSubmit }) {
   const [meal, setMeal] = useState("");
-  const [description, setDescription] = useState("");
-  const [mood, setMood] = useState("");
+  const [selfRating, setSelfRating] = useState(0);
   const [chefId, setChefId] = useState("");
   const [imageFile, setImageFile] = useState(null);
   const [imagePreview, setImagePreview] = useState(null);
@@ -1537,7 +1742,7 @@ function Composer({ friends, directory, onSubmit }) {
 
   async function handleSubmit() {
     setPosting(true);
-    await onSubmit({ meal, description, mood, chefId, imageFile, frame });
+    await onSubmit({ meal, chefId, imageFile, frame, selfRating });
     setPosting(false);
   }
 
@@ -1643,16 +1848,20 @@ function Composer({ friends, directory, onSubmit }) {
 
       <label style={label()}>meal name</label>
       <input value={meal} onChange={(e) => setMeal(e.target.value)} placeholder="Grandma's Lasagna" style={input()} />
-      <label style={label()}>tell us about it</label>
-      <textarea value={description} onChange={(e) => setDescription(e.target.value)} placeholder="extra cheesy, took 3 hours, worth it" style={{ ...input(), height: 60, resize: "none" }} />
-      <label style={label()}>mood (optional)</label>
-      <div style={{ display: "flex", gap: 6, flexWrap: "wrap", marginBottom: 4 }}>
-        {["😋", "🥵", "😴", "🎉", "😭", "🤤"].map((m) => (
-          <button key={m} onClick={() => setMood(mood === m ? "" : m)} style={{ fontSize: 18, padding: 6, borderRadius: 8, border: `2px solid ${COLORS.ink}`, background: mood === m ? COLORS.lime : "#fff", cursor: "pointer" }}>
-            {m}
-          </button>
-        ))}
+
+      <label style={label()}>how was it?</label>
+      <div style={{ display: "flex", alignItems: "center", gap: 10, marginBottom: 4 }}>
+        <HalfStarPicker value={selfRating} onChange={setSelfRating} />
+        <span style={{ fontSize: 13, color: COLORS.purple, fontFamily: "'Fredoka', sans-serif" }}>
+          {selfRating > 0 ? `${selfRating} / 5` : "tap a star"}
+        </span>
       </div>
+      {selfRating === 5 && (
+        <div style={{ fontSize: 12, color: COLORS.pinkDark, marginBottom: 8, fontFamily: "'Fredoka', sans-serif" }}>
+          ✨ perfect score — this post gets the gold aura border!
+        </div>
+      )}
+
       {friends.length > 0 && (
         <>
           <label style={label()}>did a friend cook it?</label>
@@ -1664,7 +1873,7 @@ function Composer({ friends, directory, onSubmit }) {
           </select>
         </>
       )}
-      <button disabled={!meal.trim() || posting || compressing} onClick={handleSubmit} style={{ ...primaryBtn(!meal.trim() || posting || compressing), display: "flex", alignItems: "center", justifyContent: "center", gap: 6 }}>
+      <button disabled={!meal.trim() || !selfRating || posting || compressing} onClick={handleSubmit} style={{ ...primaryBtn(!meal.trim() || !selfRating || posting || compressing), display: "flex", alignItems: "center", justifyContent: "center", gap: 6 }}>
         {posting ? (
           <>
             <Loader2 size={16} className="wfd-spin" /> uploading...

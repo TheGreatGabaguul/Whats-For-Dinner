@@ -164,6 +164,56 @@ To update an existing deployment: run the realtime migration, replace
 `public/`, run `npm install` (to pull in `vite-plugin-pwa`), then commit and
 push as usual.
 
+## Adding the self-rating / gold aura to an existing project
+
+1. Supabase → **SQL Editor → New query** → paste in
+   `supabase-migration-add-self-rating.sql` → **Run**. Adds a `self_rating`
+   column (0.5–5.0) to `posts`.
+2. Pull the latest `src/App.jsx`, commit, push.
+
+The composer's old "tell us about it" text field and mood emoji picker are
+gone, replaced by a half-star picker — tap the left half of a star for a
+`.5`, the right half for a whole number. Posting a perfect 5 wraps that
+post in a pulsing gold aura border in the feed, plus a "★ PERFECT ★" badge.
+Community ratings (other people star-rating the post after it's up) are
+unchanged and still separate from this self-rating.
+
+## Adding delete + admin account to an existing project
+
+1. Supabase → **SQL Editor → New query** → paste in
+   `supabase-migration-add-delete-and-admin.sql` → **Run**.
+2. The last line in that file is commented out on purpose — it sets your
+   own profile as admin. Edit it with your actual username and run just
+   that one line separately:
+   ```sql
+   update profiles set is_admin = true where name = 'your_username';
+   ```
+3. Pull the latest `src/App.jsx`, commit, push.
+
+Now every post has a hidden **⋮** menu (top-right of the card) with a
+**delete post** option — visible only if you posted it, or if your account
+is admin. Deleting a post removes its ratings, reactions, and uploaded
+photo along with it, and asks for a confirmation first since it can't be
+undone.
+
+## Adding your custom avatar + admin badge to an existing project
+
+1. Supabase → **SQL Editor → New query** → paste in
+   `supabase-migration-add-avatar-url.sql` → **Run**.
+2. Edit and run this line separately with your actual username:
+   ```sql
+   update profiles set avatar_url = '/avatar-admin.png' where name = 'your_username';
+   ```
+3. Pull the latest `src/App.jsx` and the new `public/avatar-admin.png`,
+   commit, push.
+
+Anywhere your name shows up — the feed, your sidebar card, your profile
+page, the friends list, Meal of the Week, the Five-Star Wall — it now shows
+your custom illustrated avatar instead of an emoji, plus a small "ADMIN"
+tag next to your name (since you're already admin from the delete-post
+update). This is set manually per-profile via SQL; there's no upload UI for
+custom avatars, just this one for your own account.
+
 ## Notes and honest limitations
 
 - **"We reach out" for 5-star meals** is represented in-app (the Meal of the
