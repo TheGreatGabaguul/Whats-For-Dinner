@@ -598,12 +598,12 @@ export default function App() {
   }
 
   async function handleLogIn({ username, password }) {
-    setError("");
-    const { data, error: err } = await signInWithUsername(username, password);
-    if (err) {
-      setError("Wrong username or password.");
-      return;
-    }
+  setError("");
+  const { data, error: err } = await signInWithUsername(username, password);
+  if (err) {
+    setError(`Login failed: ${err.message}`);
+    return;
+  }
     setSession(data.session);
     const { data: prof } = await supabase
       .from("profiles")
